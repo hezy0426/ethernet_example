@@ -17,12 +17,24 @@
 #include "driver/gpio.h"
 #include "sdkconfig.h"
 #include "netdb.h"
+#include <esp_http_server.h>
+#include "nvs_flash.h"
+
 
 #if CONFIG_ETH_USE_SPI_ETHERNET
 #include "driver/spi_master.h"
 #endif // CONFIG_ETH_USE_SPI_ETHERNET
 
 static const char *TAG = "eth_example";
+//HTML is separated for reusability
+//Check this website for how to return different html https://esp32tutorials.com/esp32-web-server-esp-idf/
+//TODO: Add the base url here, it will be the background of the standard website.
+const char* BASEURL = ""; 
+//TODO: Add the HTML code for the current condition. 
+const char* CURRENTCONDITION = "";
+//Activate for future
+//const char* CURRENTSETTING = "";
+int counter = 0; 
 
 esp_netif_t *eth_netif;
 
@@ -115,6 +127,91 @@ static void got_ip_event_handler(void *arg, esp_event_base_t event_base,
     ESP_LOGI(TAG, "~~~~~~~~~~~");
 }
 
+//Return a data to update the website using ajax
+static esp_err_t data_get_handler(httpd_req_t *req){
+    char resp[30];
+    sprintf(string, "The number is: %d", counter++);
+    httpd_resp_set_type(req,"text/plain text");
+	return httpd_resp_send(req, (const char *) resp, strlen(resp));
+}
+
+static const httpd_uri_t hello = {
+	.uri = "/data",
+	.method = HTTP_GET,
+	.handler = data_get_handler,
+	/* Let's pass response string in user
+	 * context to demonstrate it's usage */
+	.user_ctx = ""};
+
+//This function will handle the ip+/hello request
+//It will return a website
+static esp_err_t hello_get_handler(httpd_req_t *req)
+{
+
+	/* Set some custom headers */
+	httpd_resp_set_hdr(req, "Custom-Header-1", "Custom-Value-1");
+	httpd_resp_set_hdr(req, "Custom-Header-2", "Custom-Value-2");
+
+    //TODO tomorrow, check if this works. Otherwise just convert html file to C header file. See examples below 
+    //https://www.esp32.com/viewtopic.php?t=7388   https://esp32.com/viewtopic.php?t=6966
+    int resultLength = strlen(BASEURL)+strlen(CURRENTCONDITION) - 2 + 1;
+    char result[resultLength];
+    snprintf(result, resultLength, BASEURL, CURRENTCONDITION);
+    httpd_resp_set_type(req,"text/html");
+	httpd_resp_send(req, (const char *) result, resultLength);
+
+	/* After sending the HTTP response the old HTTP request
+	 * headers are lost. Check if HTTP request headers can be read now. */
+	if (httpd_req_get_hdr_value_len(req, "Host") == 0)
+	{
+		ESP_LOGI(LIB_TAG, "Request headers lost");
+	}
+	return ESP_OK;
+}
+
+static const httpd_uri_t hello = {
+	.uri = "/hello",
+	.method = HTTP_GET,
+	.handler = hello_get_handler,
+	/* Let's pass response string in user
+	 * context to demonstrate it's usage */
+	.user_ctx = (void *)"<h1>Hello World!</h1>"};
+
+
+//Starting the server, if failed to start the server, then returns NULL. 
+static httpd_handle_t start_webserver(void)
+{
+	httpd_handle_t server = NULL;
+	httpd_config_t config = HTTPD_DEFAULT_CONFIG();
+	config.lru_purge_enable = true;
+
+	// Start the httpd server
+	ESP_LOGI(LIB_TAG, "Starting server on port: '%d'", config.server_port);
+	if (httpd_start(&server, &config) == ESP_OK)
+	{
+		// Set URI handlers
+		ESP_LOGI(LIB_TAG, "Registering URI handlers");
+		httpd_register_uri_handler(server, &hello);
+		return server;
+	}
+
+	ESP_LOGI(LIB_TAG, "Error starting server!");
+	return NULL;
+}
+
+//Set up before starting the server
+static httpd_handle_t web_begin() 
+{
+	static httpd_handle_t server = NULL;
+
+	ESP_ERROR_CHECK(nvs_flash_init());
+	ESP_ERROR_CHECK(esp_netif_init());
+
+	/* Start the server for the first time */
+	server = start_webserver(); 
+	return server;
+}
+
 void app_main(void)
 {
     // Initialize TCP/IP network interface (should be called only once in application)
@@ -150,4 +247,10 @@ void app_main(void)
 
     /* start Ethernet driver state machine */
     ESP_ERROR_CHECK(esp_eth_start(eth_handle));
+
+    httpd_handle_t server = web_begin();
+    if (server == NULL)
+        ESP_LOGD(TAG, "web server failed to start");
+    else
+        ESP_LOGD("Eth","Web server started successfully");
 }
