@@ -1,2 +1,4 @@
-idf_component_register(SRCS "ethernet_example_main.c"
-                       INCLUDE_DIRS ".")
+idf_component_register(SRCS "ethernet_example_main.cpp"
+                        PRIV_REQUIRES "webServer"                        
+                        INCLUDE_DIRS "."
+                        )
