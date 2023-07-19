@@ -48,6 +48,7 @@ typedef struct
 } spi_eth_module_config_t;
 #endif
 
+// This function will set static ip. When using static ip, remember to use different number for the last number on IP
 static void example_set_static_ip()
 {
     esp_err_t ret;
@@ -80,7 +81,11 @@ static void example_set_static_ip()
     // ESP_ERROR_CHECK(example_set_dns_server(netif, ipaddr_addr(EXAMPLE_BACKUP_DNS_SERVER), ESP_NETIF_DNS_BACKUP));
 }
 
-/** Event handler for Ethernet events */
+/** Event handler for Ethernet events
+ * This event hanlder will also hanldes the stopping the webserver from running. When ethernet is
+ * disconnected, the webserver will be stopped here. The arg contains static server variable declared in
+ * app_main()
+ */
 static void eth_event_handler(void *arg, esp_event_base_t event_base,
                               int32_t event_id, void *event_data)
 {
@@ -117,7 +122,11 @@ static void eth_event_handler(void *arg, esp_event_base_t event_base,
     }
 }
 
-/** Event handler for IP_EVENT_ETH_GOT_IP */
+/** Event handler for IP_EVENT_ETH_GOT_IP
+ *  This function will also handles starting the webserver. The returned httpd_handle_t variable will be
+ *  assigned to the server var in app_main(). Since this function runs when the IP is set, it is
+ *  a perfect place to start the webserver.
+ */
 static void got_ip_event_handler(void *arg, esp_event_base_t event_base,
                                  int32_t event_id, void *event_data)
 {
@@ -141,6 +150,7 @@ static void got_ip_event_handler(void *arg, esp_event_base_t event_base,
 
 extern "C" void app_main(void)
 {
+    // Web server is started with the two hanlders below. Static variable is used to ensure it stays in the memory
     static httpd_handle_t server = NULL;
     // Initialize TCP/IP network interface (should be called only once in application)
     ESP_ERROR_CHECK(esp_netif_init());
