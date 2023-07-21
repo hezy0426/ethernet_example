@@ -8,6 +8,7 @@
 #include "esp_check.h"
 #include <esp_event.h>
 #include <esp_log.h>
+#include "cJSON.h"
 
 // HTML is separated for reusability
 // Check this website for how to return different html https://esp32tutorials.com/esp32-web-server-esp-idf/
@@ -19,17 +20,37 @@ const char *CURRENTCONDITION = "";
 // const char* CURRENTSETTING = "";
 int counter = 0;
 
-static const char *page1 = "<!DOCTYPE html>\n<html>\n<title>Online HTML Editor</title>\n\n<head>\n</head>\n\n<body>\n    <h1>Online HTML Editor</h1>\n    <div>This is real time online HTML Editor</div>\n    <p> <a href=\"/\"><button id=\\\"button1\\\">Current Condition</button></a> <a href=\"/setting\"><button id=\\\"button2\\\">Current Setting</button></a> </p>\n    <p>Data from http server, retrieves every 5 seconds</p>\n    <P id=\"counter\"></P>\n    <script>\n        function fetchData() {\n            var xhr = new XMLHttpRequest();\n            xhr.onreadystatechange = function() {\n                if (xhr.readyState === XMLHttpRequest.DONE) {\n                    if (xhr.status === 200) {\n                        document.getElementById('counter').innerText = xhr.responseText;\n                    } else {\n                        console.error('Error:', xhr.status);\n                    }\n                }\n            };\n            xhr.open('GET', '/data', true);\n            xhr.send();\n        }\n   fetchData();\n     setInterval(fetchData, 5000);\n    </script>\n</body>\n\n</html>\n\n<!DOCTYPE html>\n<html>";
+static const char *page1 = "<!DOCTYPE html>\n<html>\n<title>Online HTML Editor</title>\n\n<head>\n</head>\n\n<body>\n    <h1>HTML TEST</h1>\n  <p> <a href=\"/\"><button id=\\\"button1\\\">Current Condition</button></a> <a href=\"/setting\"><button id=\\\"button2\\\">Current Setting</button></a> </p>\n    <p>Data from http server, retrieves every 5 seconds</p>\n    <P id=\"counter\"></P>\n    <script>\n        function fetchData() {\n            $.get(\"/data\", function(response) {\n                try {\n                    var jsonData = JSON.parse(response); // Parse the JSON response\n                    var outputValue = jsonData.output; // Extract the \"output\" value from the JSON\n                    $(\"#counter\").text(outputValue); // Update the HTML element with the retrieved value\n                } catch (error) {\n                    console.error(\"Error parsing JSON:\", error);\n                }\n            });\n        }\n\n        // Fetch data initially\n        fetchData();\n\n        // Periodically fetch data every 5 seconds (5000 milliseconds)\n        setInterval(fetchData, 5000);\n    </script>\n</body>\n\n</html>";
 
 static const char *setting = "<!DOCTYPE html>\n<html>\n<title>Online HTML Editor</title>\n\n<head>\n</head>\n\n<body>\n    <h1>Online HTML Editor</h1>\n    <p> <a href=\"/\"><button id=\\\"button1\\\">Current Condition</button></a> <a href=\"/setting\"><button id=\\\"button2\\\">Current Setting</button></a> </p>\n    <div>This is the setting page</div>\n</body>\n\n</html>";
+
+/**
+ * 07/20/2023 - Ruizhe He, this function should build a JSON string based on the input. The JSON string should look like:
+ * {
+ *  "output" : input_value
+ * }
+ */
+static char *buildJSONString(char *input)
+{
+    char *JSONString = NULL;
+    cJSON *data = NULL;
+
+    data = cJSON_CreateObject();
+
+    cJSON_AddStringToObject(data, "output", (const char *const)input);
+    JSONString = cJSON_Print(data);
+    cJSON_Delete(data);
+    return JSONString;
+}
 
 // When ajax function is triggered, this function will return data to update the website
 static esp_err_t data_get_handler(httpd_req_t *req)
 {
     char resp[30];
     sprintf(resp, "The number is: %d", counter++);
+
     httpd_resp_set_type(req, "text/plain text");
-    return httpd_resp_send(req, (const char *)resp, strlen(resp));
+    return httpd_resp_send(req, (const char *)buildJSONString(resp), HTTPD_RESP_USE_STRLEN);
 }
 
 /**
