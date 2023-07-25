@@ -1,4 +1,13 @@
-
+/**
+ * 07/25/2023 - Ruizhe He, this is an example for http server on esp-idf. 
+ * Currently, if you go to the ip address when the server is up, it will return 
+ * a basic webpage. The html code for webpage is stored in index_html.h. This webpage 
+ * has a simple javascrpt function to retrieve /data to update the webpage. The javascript
+ * code is stored in myscript_js.h. 
+ * 
+ * For future reference, we can send html that requires external css/javascript files.
+ * We just need to create more handlers for each file that needs to be sent. 
+*/
 
 #include <stdio.h>
 #include <string.h>
@@ -9,21 +18,13 @@
 #include <esp_event.h>
 #include <esp_log.h>
 #include "cJSON.h"
+#include "index_html.h"
+#include "myscript_js.h"
 
-// HTML is separated for reusability
-// Check this website for how to return different html https://esp32tutorials.com/esp32-web-server-esp-idf/
-// TODO: Add the base url here, it will be the background of the standard website.
-const char *BASEURL = "";
-// TODO: Add the HTML code for the current condition.
-const char *CURRENTCONDITION = "";
-// Activate for future
-// const char* CURRENTSETTING = "";
+
 int counter = 0;
 
-static const char *page1 = "<!DOCTYPE html>\n<html>\n<title>Online HTML Editor</title>\n\n<head>\n</head>\n\n<body>\n    <h1>HTML TEST</h1>\n  <p> <a href=\"/\"><button id=\\\"button1\\\">Current Condition</button></a> <a href=\"/setting\"><button id=\\\"button2\\\">Current Setting</button></a> </p>\n    <p>Data from http server, retrieves every 5 seconds</p>\n    <P id=\"counter\"></P>\n    <script>\n        function fetchData() {\n            $.get(\"/data\", function(response) {\n                try {\n                    var jsonData = JSON.parse(response); // Parse the JSON response\n                    var outputValue = jsonData.output; // Extract the \"output\" value from the JSON\n                    $(\"#counter\").text(outputValue); // Update the HTML element with the retrieved value\n                } catch (error) {\n                    console.error(\"Error parsing JSON:\", error);\n                }\n            });\n        }\n\n        // Fetch data initially\n        fetchData();\n\n        // Periodically fetch data every 5 seconds (5000 milliseconds)\n        setInterval(fetchData, 5000);\n    </script>\n</body>\n\n</html>";
-
 static const char *setting = "<!DOCTYPE html>\n<html>\n<title>Online HTML Editor</title>\n\n<head>\n</head>\n\n<body>\n    <h1>Online HTML Editor</h1>\n    <p> <a href=\"/\"><button id=\\\"button1\\\">Current Condition</button></a> <a href=\"/setting\"><button id=\\\"button2\\\">Current Setting</button></a> </p>\n    <div>This is the setting page</div>\n</body>\n\n</html>";
-
 /**
  * 07/20/2023 - Ruizhe He, this function should build a JSON string based on the input. The JSON string should look like:
  * {
@@ -64,6 +65,24 @@ static const httpd_uri_t data = {
      * context to demonstrate it's usage */
     .user_ctx = (void *)"Returns data"};
 
+// This will return the js file 
+static esp_err_t jsString_get_handler(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "text/javascript");
+    return httpd_resp_send(req, jsString, HTTPD_RESP_USE_STRLEN);
+}
+
+/**
+ * URI hanlder. When ip/myscript.js is called, jsString_get_handler() is triggered
+ */
+static const httpd_uri_t jsStringGetter = {
+    .uri = "/myscripts.js",
+    .method = HTTP_GET,
+    .handler = jsString_get_handler,
+    /* Let's pass response string in user
+     * context to demonstrate it's usage */
+    .user_ctx = (void *)"Returns data"};
+
 // This function will handle the ip/ request
 // It will return a website
 static esp_err_t hello_get_handler(httpd_req_t *req)
@@ -79,7 +98,7 @@ static esp_err_t hello_get_handler(httpd_req_t *req)
     //  char result[resultLength];
     //  snprintf(result, resultLength, BASEURL, CURRENTCONDITION);
     //  httpd_resp_send(req, (const char *) result, resultLength);
-    return httpd_resp_send(req, page1, HTTPD_RESP_USE_STRLEN);
+    return httpd_resp_send(req, htmlContent, HTTPD_RESP_USE_STRLEN);
 }
 // URI hanlder for ip/
 static const httpd_uri_t hello = {
@@ -123,6 +142,7 @@ httpd_handle_t start_webserver()
         httpd_register_uri_handler(server, &hello);
         httpd_register_uri_handler(server, &data);
         httpd_register_uri_handler(server, &setPage);
+        httpd_register_uri_handler(server, &jsStringGetter);
         return server;
     }
     ESP_LOGI("webServer", "WEB failed to start");
