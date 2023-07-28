@@ -1,12 +1,14 @@
 /**
  * 07/25/2023 - Ruizhe He, this is an example for http server on esp-idf.
- * Currently, if you go to the ip address when the server is up, it will return
- * a basic webpage. The html code for webpage is stored in index_html.h. This webpage
- * has a simple javascrpt function to retrieve /data to update the webpage. The javascript
- * code is stored in myscript_js.h.
+ * Http server is automatically started when the ethernet with static ip
+ * is setup. (See ethernet_example_main.cpp).
  *
- * For future reference, we can send html that requires external css/javascript files.
- * We just need to create more handlers for each file that needs to be sent.
+ * Go to the ip address once everything is running, the sample page will return.
+ * Currently, all the values are dummy values and stored in json_string.h, but the
+ * timer works correctly and the all the basic functions should be running.
+ *
+ * HTML code is stored in the index_html.h. All the required JS and css files are stored
+ * in myscript_js.h. Each required files for the html has its own handler.
  */
 
 #include <stdio.h>
@@ -22,14 +24,12 @@
 #include "myscript_js.h"
 #include "json_string.h"
 
-long long this_time = 1690403667000;
+// A time for the timertick function in html
+long long this_time = 1690495162000;
 
-static const char *setting = "<!DOCTYPE html>\n<html>\n<title>Online HTML Editor</title>\n\n<head>\n</head>\n\n<body>\n    <h1>Online HTML Editor</h1>\n    <p> <a href=\"/\"><button id=\\\"button1\\\">Current Condition</button></a> <a href=\"/setting\"><button id=\\\"button2\\\">Current Setting</button></a> </p>\n    <div>This is the setting page</div>\n</body>\n\n</html>";
 /**
- * 07/20/2023 - Ruizhe He, this function should build a JSON string based on the input. The JSON string should look like:
- * {
- *  "output" : input_value
- * }
+ * This function isn't used ,but it can be used as an example
+ *  to show how cJSON works.
  */
 static char *buildJSONString(char *input)
 {
@@ -44,6 +44,11 @@ static char *buildJSONString(char *input)
     return JSONString;
 }
 
+/**
+ * Since we don't have access to the time module, manually transfer a
+ * time to the front-end for it to work with. Long long may not
+ * work with cJSON since it exceeds INT_MAX, so it's saved as a string.
+ */
 static esp_err_t getTime_get_handler(httpd_req_t *req)
 {
     // Allocate a character array to store the converted string
@@ -52,16 +57,13 @@ static esp_err_t getTime_get_handler(httpd_req_t *req)
     char buffer[bufferSize]; // Make sure the buffer is large enough to hold the string representation
     // Convert the long long value to a const char* using sprintf
     snprintf(buffer, bufferSize, baseString, this_time);
+    // Increments by 10 seconds because the js functions checks if the time has changed
     this_time += 10000;
-    // Now 'buffer' contains the string representation of 'num'
     const char *result = buffer;
     httpd_resp_set_type(req, "text/plain");
     return httpd_resp_send(req, result, HTTPD_RESP_USE_STRLEN);
 }
 
-/**
- * URI hanlder. When ip/data is called, data_get_handler() is triggered
- */
 static const httpd_uri_t getTime = {
     .uri = "/getTime",
     .method = HTTP_GET,
@@ -70,6 +72,10 @@ static const httpd_uri_t getTime = {
      * context to demonstrate it's usage */
     .user_ctx = NULL};
 
+/**
+ * This will return channel json string. Channel seems to hold
+ * definition and explaining info for data return in dataNow.json
+ */
 static esp_err_t channel_get_handler(httpd_req_t *req)
 {
 
@@ -77,9 +83,6 @@ static esp_err_t channel_get_handler(httpd_req_t *req)
     return httpd_resp_send(req, channel_string, HTTPD_RESP_USE_STRLEN);
 }
 
-/**
- * URI hanlder. When ip/data is called, data_get_handler() is triggered
- */
 static const httpd_uri_t channel_handler = {
     .uri = "/channel.json",
     .method = HTTP_GET,
@@ -88,15 +91,17 @@ static const httpd_uri_t channel_handler = {
      * context to demonstrate it's usage */
     .user_ctx = NULL};
 
+/**
+ * This will return dataNow information. This should be generated in
+ * real time in the actual project. This is the data shown under
+ * "Now" table
+ */
 static esp_err_t dataNow_get_handler(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "application/json");
     return httpd_resp_send(req, dataNow_string, HTTPD_RESP_USE_STRLEN);
 }
 
-/**
- * URI hanlder. When ip/data is called, data_get_handler() is triggered
- */
 static const httpd_uri_t dataNow = {
     .uri = "/dataNow.json",
     .method = HTTP_GET,
@@ -105,16 +110,16 @@ static const httpd_uri_t dataNow = {
      * context to demonstrate it's usage */
     .user_ctx = NULL};
 
-// This will return the js file
+/**
+ * This returns a css file for the html. Each external file requires a
+ * separated handler.
+ */
 static esp_err_t magnum_style_get_handler(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "text/css");
     return httpd_resp_send(req, magnum_css, HTTPD_RESP_USE_STRLEN);
 }
 
-/**
- * URI hanlder. When ip/myscript.js is called, jsString_get_handler() is triggered
- */
 static const httpd_uri_t magnumStyle = {
     .uri = "/magnum_style.css",
     .method = HTTP_GET,
@@ -123,16 +128,15 @@ static const httpd_uri_t magnumStyle = {
      * context to demonstrate it's usage */
     .user_ctx = (void *)""};
 
-// This will return the js file
+/**
+ * This will return a required javascript file for html.
+ */
 static esp_err_t magnum_js_get_handler(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "text/javascript");
     return httpd_resp_send(req, magnum_js, HTTPD_RESP_USE_STRLEN);
 }
 
-/**
- * URI hanlder. When ip/myscript.js is called, jsString_get_handler() is triggered
- */
 static const httpd_uri_t magnumjs = {
     .uri = "/magnum.js",
     .method = HTTP_GET,
@@ -141,16 +145,15 @@ static const httpd_uri_t magnumjs = {
      * context to demonstrate it's usage */
     .user_ctx = (void *)""};
 
-// This will return the js file
+/**
+ * This will return a required javascript file for html.
+ */
 static esp_err_t jquery_11_get_handler(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "text/javascript");
     return httpd_resp_send(req, jquery_1_11, HTTPD_RESP_USE_STRLEN);
 }
 
-/**
- * URI hanlder. When ip/myscript.js is called, jsString_get_handler() is triggered
- */
 static const httpd_uri_t jquery_11 = {
     .uri = "/jquery-1.11.1.min.js",
     .method = HTTP_GET,
@@ -159,15 +162,15 @@ static const httpd_uri_t jquery_11 = {
      * context to demonstrate it's usage */
     .user_ctx = (void *)""};
 
+/**
+ * This will return a required javascript file for html.
+ */
 static esp_err_t excanas_get_handler(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "text/javascript");
     return httpd_resp_send(req, excanvas, HTTPD_RESP_USE_STRLEN);
 }
 
-/**
- * URI hanlder. When ip/myscript.js is called, jsString_get_handler() is triggered
- */
 static const httpd_uri_t excanvasJS = {
     .uri = "/excanvas.min.js",
     .method = HTTP_GET,
@@ -176,15 +179,15 @@ static const httpd_uri_t excanvasJS = {
      * context to demonstrate it's usage */
     .user_ctx = (void *)""};
 
+/**
+ * This will return a required javascript file for html.
+ */
 static esp_err_t jquery_float_get_handler(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "text/javascript");
     return httpd_resp_send(req, jqueryfloat, HTTPD_RESP_USE_STRLEN);
 }
 
-/**
- * URI hanlder. When ip/myscript.js is called, jsString_get_handler() is triggered
- */
 static const httpd_uri_t jquery_float = {
     .uri = "/jquery.flot.js",
     .method = HTTP_GET,
@@ -193,15 +196,15 @@ static const httpd_uri_t jquery_float = {
      * context to demonstrate it's usage */
     .user_ctx = (void *)""};
 
+/**
+ * This will return a required javascript file for html.
+ */
 static esp_err_t jquery_threshold_get_handler(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "text/javascript");
     return httpd_resp_send(req, jqery_threshold, HTTPD_RESP_USE_STRLEN);
 }
 
-/**
- * URI hanlder. When ip/myscript.js is called, jsString_get_handler() is triggered
- */
 static const httpd_uri_t jquery_threshold = {
     .uri = "/jquery.flot.threshold.js",
     .method = HTTP_GET,
@@ -210,15 +213,15 @@ static const httpd_uri_t jquery_threshold = {
      * context to demonstrate it's usage */
     .user_ctx = (void *)""};
 
+/**
+ * This will return a required javascript file for html.
+ */
 static esp_err_t howler_get_handler(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "text/javascript");
     return httpd_resp_send(req, howler, HTTPD_RESP_USE_STRLEN);
 }
 
-/**
- * URI hanlder. When ip/myscript.js is called, jsString_get_handler() is triggered
- */
 static const httpd_uri_t howler_handler = {
     .uri = "/howler.min.js",
     .method = HTTP_GET,
@@ -227,15 +230,15 @@ static const httpd_uri_t howler_handler = {
      * context to demonstrate it's usage */
     .user_ctx = (void *)""};
 
+/**
+ * This will return a required javascript file for html.
+ */
 static esp_err_t alarm_get_handler(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "text/javascript");
     return httpd_resp_send(req, alarm, HTTPD_RESP_USE_STRLEN);
 }
 
-/**
- * URI hanlder. When ip/myscript.js is called, jsString_get_handler() is triggered
- */
 static const httpd_uri_t alarm_handler = {
     .uri = "/alarm.js",
     .method = HTTP_GET,
@@ -244,15 +247,15 @@ static const httpd_uri_t alarm_handler = {
      * context to demonstrate it's usage */
     .user_ctx = (void *)""};
 
+/**
+ * This will return a required javascript file for html.
+ */
 static esp_err_t date_get_handler(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "text/javascript");
     return httpd_resp_send(req, date_js, HTTPD_RESP_USE_STRLEN);
 }
 
-/**
- * URI hanlder. When ip/myscript.js is called, jsString_get_handler() is triggered
- */
 static const httpd_uri_t date_handler = {
     .uri = "/date.js",
     .method = HTTP_GET,
@@ -261,6 +264,10 @@ static const httpd_uri_t date_handler = {
      * context to demonstrate it's usage */
     .user_ctx = (void *)""};
 
+/**
+ * This will return the host info. It contains
+ * memory info of the SD. It's only dummy value here.
+ */
 static esp_err_t hostinfo_get_handler(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "application/json");
@@ -283,15 +290,9 @@ static esp_err_t indexPage_get_handler(httpd_req_t *req)
     httpd_resp_set_hdr(req, "Custom-Header-1", "Custom-Value-1");
     httpd_resp_set_hdr(req, "Custom-Header-2", "Custom-Value-2");
 
-    // TODO tomorrow, check if this works. Otherwise just convert html file to C header file. See examples below
-    // https://www.esp32.com/viewtopic.php?t=7388   https://esp32.com/viewtopic.php?t=6966
-    //  int resultLength = strlen(BASEURL)+strlen(CURRENTCONDITION) - 2 + 1;
-    //  char result[resultLength];
-    //  snprintf(result, resultLength, BASEURL, CURRENTCONDITION);
-    //  httpd_resp_send(req, (const char *) result, resultLength);
     return httpd_resp_send(req, currentConditionPage, HTTPD_RESP_USE_STRLEN);
 }
-// URI hanlder for ip/
+
 static const httpd_uri_t indexPage = {
     .uri = "/",
     .method = HTTP_GET,
@@ -299,26 +300,6 @@ static const httpd_uri_t indexPage = {
     /* Let's pass response string in user
      * context to demonstrate it's usage */
     .user_ctx = NULL};
-
-/**
- * Handler for ip/setting. This function will return a different website
- */
-static esp_err_t setting_get_handler(httpd_req_t *req)
-{
-
-    /* Set some custom headers */
-    httpd_resp_set_hdr(req, "Custom-Header-1", "Custom-Value-1");
-    httpd_resp_set_hdr(req, "Custom-Header-2", "Custom-Value-2");
-    return httpd_resp_send(req, setting, HTTPD_RESP_USE_STRLEN);
-}
-
-static const httpd_uri_t setPage = {
-    .uri = "/setting",
-    .method = HTTP_GET,
-    .handler = setting_get_handler,
-    /* Let's pass response string in user
-     * context to demonstrate it's usage */
-    .user_ctx = (void *)""};
 
 // Starting the server, if it fails to start the server, then returns NULL.
 httpd_handle_t start_webserver()
@@ -333,7 +314,6 @@ httpd_handle_t start_webserver()
         ESP_LOGI("webServer", "WEB server started");
         httpd_register_uri_handler(server, &indexPage);
         httpd_register_uri_handler(server, &channel_handler);
-        httpd_register_uri_handler(server, &setPage);
         httpd_register_uri_handler(server, &magnumjs);
         httpd_register_uri_handler(server, &magnumStyle);
         httpd_register_uri_handler(server, &jquery_11);
