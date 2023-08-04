@@ -102,9 +102,7 @@
             if (xhr.status === 200) {
               dataS = $.parseJSON(xhr.responseText);
               channels = dataS.data;
-              //Commented out because we don't have logging for now
-              // loadHistory();
-              loadDataCreate();
+              loadHistory();
             } else {
               console.error("Error:", xhr.status);
               noResponse = true;
@@ -116,25 +114,8 @@
         xhr.send();
       }
 
-      /* headline */
-      function updateHeadline() {
-        //urlHostname = "http://192.168.10.226/data/hostinfo.json?_=1415809551047";
-        var xhr = new XMLHttpRequest();
-        xhr.onreadystatechange = function () {
-          if (xhr.readyState === XMLHttpRequest.DONE) {
-            if (xhr.status === 200) {
-              var jsonData = JSON.parse(xhr.responseText); // Parse the JSON response
-              processHostInfo(jsonData, false);
-            } else {
-              console.error("Error:", xhr.status);
-            }
-          }
-        };
-        xhr.open("GET", "/hostinfo.json", true);
-        xhr.send();
-      }
-      /* headline */
-      function loadHeadline() {
+      /* headline. If true, create the table */
+      function loadHeadline(createTable) {
         //urlHostname = "http://192.168.10.226/data/hostinfo.json?_=1415809551047";
 
         var xhr = new XMLHttpRequest();
@@ -142,7 +123,7 @@
           if (xhr.readyState === XMLHttpRequest.DONE) {
             if (xhr.status === 200) {
               var jsonData = JSON.parse(xhr.responseText); // Parse the JSON response
-              processHostInfo(jsonData, true);
+              processHostInfo(jsonData, createTable);
             } else {
               console.error("Error:", xhr.status);
             }
@@ -152,14 +133,14 @@
         xhr.send();
       }
 
-      //TODO: maybe modify it so that it only contains the mnt data instead of having everything?
+      //TODO: Check if dayKB is still correct 
       function processHostInfo(dataS, create) {
         $("#headline").html("PRO-Verter RMK (" + dataS.hostname + "): Current Conditions");
 
-        var total = getMemory("/mnt/data", "total", dataS.drives);
-        var free = getMemory("/mnt/data", "avail", dataS.drives);
-        var used = getMemory("/mnt/data", "used", dataS.drives);
-        var daysLeft = total / dayKB;
+        var total = getMemory("SD_Card", "total", dataS.drives);
+        var free = getMemory("SD_Card", "avail", dataS.drives);
+        var used = getMemory("SD_Card", "used", dataS.drives);
+        var daysLeft = free / dayKB;
 
         if (-1 != total) {
           addLineMem(
@@ -193,29 +174,30 @@
         } else {
           $("#memoryData").hide();
         }
-        /* if USB is plugged in */
-        if (-1 != getMemory("/media/usb0", "total", dataS.drives)) {
-          $(".usbRow").show();
+        // USB is not used anymore. 
+        // /* if USB is plugged in */
+        // if (-1 != getMemory("/media/usb0", "total", dataS.drives)) {
+        //   $(".usbRow").show();
 
-          /* safe to remove? */
-          var readOnly = getMemory("/media/usb0", "readOnly", dataS.drives);
-          if (!readOnly) {
-            $("#usbMsg").html(
-              "File copy in progess<br>DO NOT REMOVE<br>EXTERNAL STORAGE</span>"
-            );
-            $("#usbMsg").css("background-color", "red");
-            $("#usbMsg").css("color", "white");
-            MemUp();
-          } else {
-            $("#usbMsg").html(
-              "File copy is complete.<br>You may safely remove<br>external storage</span>"
-            );
-            $("#usbMsg").css("background-color", "green");
-            $("#usbMsg").css("color", "white");
-          }
-        } else {
-          $(".usbRow").hide();
-        }
+        //   /* safe to remove? */
+        //   var readOnly = getMemory("/media/usb0", "readOnly", dataS.drives);
+        //   if (!readOnly) {
+        //     $("#usbMsg").html(
+        //       "File copy in progess<br>DO NOT REMOVE<br>EXTERNAL STORAGE</span>"
+        //     );
+        //     $("#usbMsg").css("background-color", "red");
+        //     $("#usbMsg").css("color", "white");
+        //     MemUp();
+        //   } else {
+        //     $("#usbMsg").html(
+        //       "File copy is complete.<br>You may safely remove<br>external storage</span>"
+        //     );
+        //     $("#usbMsg").css("background-color", "green");
+        //     $("#usbMsg").css("color", "white");
+        //   }
+        // } else {
+        //   $(".usbRow").hide();
+        // }
 
         /* warning if low on space */
         if (daysLeft <= 30) {
@@ -261,34 +243,14 @@
 
       var lastCh = "";
 
-      /* loads ten second data */
-      function loadDataCreate() {
+      // Load ten seconds data. If parameter is true, the table will be created
+      function loadData(bCreate) {
         var xhr = new XMLHttpRequest();
         xhr.onreadystatechange = function () {
           if (xhr.readyState === XMLHttpRequest.DONE) {
             if (xhr.status === 200) {
               dataS = $.parseJSON(xhr.responseText);
-              loadTime(dataS, true);
-              //   createTable(dataS, true);
-            } else {
-              console.error("Error:", xhr.status);
-              noResponse = true;
-              customFaults(null);
-            }
-          }
-        };
-        xhr.open("GET", "/dataNow.json", true);
-        xhr.send();
-      }
-
-      function loadData() {
-        var xhr = new XMLHttpRequest();
-        xhr.onreadystatechange = function () {
-          if (xhr.readyState === XMLHttpRequest.DONE) {
-            if (xhr.status === 200) {
-              dataS = $.parseJSON(xhr.responseText);
-              loadTime(dataS, false);
-              //   createTable(dataS, false);
+              createTable(dataS, bCreate);
             } else {
               console.error("Error:", xhr.status);
               noResponse = true;
@@ -351,63 +313,29 @@
         }
       }
 
-      //FIXME: this is only a temporary solution for ethernet example
-      function loadTime(dataS, bol) {
-        var xhr = new XMLHttpRequest();
-        xhr.onreadystatechange = function () {
-          if (xhr.readyState === XMLHttpRequest.DONE) {
-            if (xhr.status === 200) {
-              curTime = $.parseJSON(xhr.responseText).data;
-              createTable(dataS, bol);
-            } else {
-              console.error("Error:", xhr.status);
-              noResponse = true;
-              customFaults(null);
-            }
-          }
-        };
-        xhr.open("GET", "/getTime", true);
-        xhr.send();
-      }
-
       /* create the human readable received report */
       function dateRows(dataAr, create) {
         addHeader("currentTable", "Now", 2, create);
 
         /* There isn't any kind of age indication in these packets as of now, so we have to remember the last packet time and check against that */
-
-        //FIXME: This is modified to be used in ethernet example
-        console.log(
-          `Current time is ${curTime} and the type is ${typeof curTime}`
-        );
-        curTime = parseInt(curTime);
-        if (255 == parseInt(dataAr["age_inverter"].sampleValue)) {
-          if (lastTime != curTime) {
-            seconds = 0;
-            lastTime = curTime;
-            oldData = false;
-          } else if (seconds > 30) {
-            oldData = true;
-            customFaults(null);
-          }
-        } else {
-          if (lastTime != curTime) {
-            seconds = 0;
-            lastTime = curTime;
-            oldData = false;
-          } else if (seconds > 10) {
-            oldData = true;
-            customFaults(null);
-          }
+      
+        if (lastTime != parseInt(dataAr[lastCh].time)) {
+          seconds = 0;
+          lastTime = curTime;
+          oldData = false;
+        } else if (seconds > 10) {
+          oldData = true;
+          customFaults(null);
         }
-        lastTime = curTime;
-        nowTimeStamp = curTime;
+        
+        lastTime = parseInt(dataAr[lastCh].time);
+        nowTimeStamp = parseInt(dataAr[lastCh].time);
 
         addLine(
           "currentTable",
           "Data Date (UTC):",
           '<span id="convDate">' +
-            getUTCTime(curTime) +
+            getUTCTime(parseInt(dataAr[lastCh].time)) +
             '</span><br>Report received <span id="ageRep">' +
             commaSeparateNumber(seconds) +
             "</span> seconds ago",
@@ -507,9 +435,7 @@
           } else {
             $("#battCharge").html("Thinking...");
           }
-          var watts = Math.round(
-            dataAr["b_dc_volts"].avg * dataAr["b_dc_amps"].avg
-          );
+          var watts = Math.round(dataAr["b_dc_watts"].avg);
 
           $("#voltsAmps").html(
             commaSeparateNumber(
@@ -545,7 +471,7 @@
           addCat(
             "currentTable",
             "Data Supplied By Inverter (" +
-              magnumInverterModel(parseInt(dataAr["i_model"].sampleValue), 0) +
+              inverterModel(parseInt(dataAr["i_model"].sampleValue), 0) +
               ")",
             create
           );
@@ -554,7 +480,7 @@
           addLine(
             "currentTable",
             "Status:",
-            magnumInverterStatus(parseInt(dataAr["i_status"].sampleValue)),
+            inverterStatus(parseInt(dataAr["i_status"].sampleValue)),
             "iStatus",
             create
           );
@@ -588,7 +514,7 @@
           if (
             (null == dataAr["length_inverter"] ||
               parseInt(dataAr["length_inverter"].sampleValue) >= 20) &&
-            magnumInverterModel(parseInt(dataAr["i_model"].sampleValue), 3) != 1
+            inverterModel(parseInt(dataAr["i_model"].sampleValue), 3) != 1
           ) {
             displayMeters = true;
           }
@@ -603,7 +529,7 @@
 
             if (
               1 ==
-              magnumInverterModel(parseInt(dataAr["i_model"].sampleValue), 3)
+              inverterModel(parseInt(dataAr["i_model"].sampleValue), 3)
             ) {
               vacScale = 2.0;
             }
@@ -652,7 +578,7 @@
               );
               if (
                 1 ==
-                magnumInverterModel(parseInt(dataAr["i_model"].sampleValue), 4)
+                inverterModel(parseInt(dataAr["i_model"].sampleValue), 4)
               ) {
                 s =
                   "Approximately " +
@@ -707,7 +633,7 @@
             if (
               dataAr["i_ac_volts_in"].avg >= 80 &&
               1 ==
-                magnumInverterModel(parseInt(dataAr["i_model"].sampleValue), 4)
+                inverterModel(parseInt(dataAr["i_model"].sampleValue), 4)
             ) {
               s =
                 "Approximately " +
@@ -795,7 +721,7 @@
           addLine(
             "currentTable",
             "Status:",
-            magnumAGSStatus(parseInt(dataAr["a_status"].sampleValue)),
+            AGSStatus(parseInt(dataAr["a_status"].sampleValue)),
             "ags_status",
             create
           );
@@ -818,7 +744,7 @@
           addLine(
             "currentTable",
             'Generator Runtime:<br><span style="font-size: 0.8em;">(Current Cycle)</span>',
-            parseFloat(dataAr["a_gen_runtime_minutes"].sampleValue).toFixed(1) +
+            parseFloat(dataAr["a_gen_runtime_decihours"].sampleValue).toFixed(1) +
               " hours",
             "ags_genRun",
             create
@@ -1133,7 +1059,7 @@
           addHourCat(
             "hourTable",
             "Data Supplied By Inverter (" +
-              magnumInverterModel(parseInt(dataAr["i_model"].sampleValue), 0) +
+              inverterModel(parseInt(dataAr["i_model"].sampleValue), 0) +
               ")",
             create
           );
@@ -1160,7 +1086,7 @@
           if (
             (null == dataAr["length_inverter"] ||
               parseInt(dataAr["length_inverter"].sampleValue) >= 20) &&
-            magnumInverterModel(parseInt(dataAr["i_model"].sampleValue), 3) != 1
+            inverterModel(parseInt(dataAr["i_model"].sampleValue), 3) != 1
           ) {
             displayMeters = true;
           }
@@ -1495,7 +1421,6 @@
           if (xhr.readyState === XMLHttpRequest.DONE) {
             if (xhr.status === 200) {
               dataS = $.parseJSON(xhr.responseText);
-
               processHist(dataS);
             } else {
               console.error("Error:", xhr.status);
@@ -1504,7 +1429,7 @@
             }
           }
         };
-        xhr.open("GET", "/history.json", true);
+        xhr.open("GET", "/recent.json", true);
         xhr.send();
       }
 
@@ -1552,7 +1477,7 @@
             data.calc.push([histAr[i].time, histAr[i].data.calc_add_power]);
         }
 
-        loadDataCreate();
+        loadData(true);
       }
 
       /* plots the graphs */
@@ -1826,16 +1751,16 @@
         /* This will check the server for new data every ten seconds. note that it checks when seconds mod 10 equals 1. This is because when seconds%10==0 was used
       		it would tend to miss getting new data almost everytime. */
         if (seconds % 10 == 1 && seconds != 1) {
-          loadData();
+          loadData(false);
         }
         /* here, if there was no new data, it checks seconds%10==5, giving it 5 extra seconds and checking the server again. This was added to fix a problem where sometimes
       		seconds would miss an update, keep going until twice the update time, then update twice in a row. This is double checking if the data is actually
       		old or if it checked too early */
         if (seconds > 10 && seconds % 10 == 5) {
-          loadData();
+          loadData(false);
         }
 
-        updateHeadline();
+        loadHeadline(false);
 
         setTimeout(timerTick, 1000);
       }
@@ -1920,7 +1845,7 @@
         });
         /* request data and start timer */
         //loadData();
-        loadHeadline();
+        loadHeadline(true);
         loadChannelData();
       });
     </script>

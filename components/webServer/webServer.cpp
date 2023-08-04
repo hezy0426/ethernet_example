@@ -1,76 +1,34 @@
 /**
- * 07/25/2023 - Ruizhe He, this is an example for http server on esp-idf.
- * Http server is automatically started when the ethernet with static ip
- * is setup. (See ethernet_example_main.cpp).
+ * Http Server
  *
- * Go to the ip address once everything is running, the sample page will return.
- * Currently, all the values are dummy values and stored in json_string.h, but the
- * timer works correctly and the all the basic functions should be running.
- *
- * HTML code is stored in the index_html.h. All the required JS and css files are stored
- * in myscript_js.h. Each required files for the html has its own handler.
+ * 07/17/2023 Ruizhe He
+ * Currently, this file is still WIP, the full website html code is still missing.
+ * The web server starting and stopping functions are implemented, but the web
+ * server doesn't start here and that is done in EthernetConnect.cpp.
+ * Basic usage:
+ * 1. Create a hanlder function
+ * 2. Create a URI handler
+ * 3. Register the handler in start_webserver()
  */
 
+#include "WebServer.h"
 #include <stdio.h>
 #include <string.h>
-#include "webServer.h"
-#include <esp_http_server.h>
 #include "esp_err.h"
+#include "esp_event.h"
 #include "esp_check.h"
 #include <esp_event.h>
 #include <esp_log.h>
-#include "cJSON.h"
-#include "index_html.h"
+#include "Data2Web.h"
+
+// All the CSS, HTML, and JS code stored in const char*
 #include "myscript_js.h"
+#include "css.h"
+#include "index_html.h"
 #include "json_string.h"
 
 // A time for the timertick function in html
 long long this_time = 1690495162000;
-
-/**
- * This function isn't used ,but it can be used as an example
- *  to show how cJSON works.
- */
-static char *buildJSONString(char *input)
-{
-    char *JSONString = NULL;
-    cJSON *data = NULL;
-
-    data = cJSON_CreateObject();
-
-    cJSON_AddStringToObject(data, "output", (const char *)input);
-    JSONString = cJSON_Print(data);
-    cJSON_Delete(data);
-    return JSONString;
-}
-
-/**
- * Since we don't have access to the time module, manually transfer a
- * time to the front-end for it to work with. Long long may not
- * work with cJSON since it exceeds INT_MAX, so it's saved as a string.
- */
-static esp_err_t getTime_get_handler(httpd_req_t *req)
-{
-    // Allocate a character array to store the converted string
-    char *baseString = "{\"data\":%lld}";
-    int bufferSize = snprintf(NULL, 0, baseString, this_time) + 1;
-    char buffer[bufferSize]; // Make sure the buffer is large enough to hold the string representation
-    // Convert the long long value to a const char* using sprintf
-    snprintf(buffer, bufferSize, baseString, this_time);
-    // Increments by 10 seconds because the js functions checks if the time has changed
-    this_time += 10000;
-    const char *result = buffer;
-    httpd_resp_set_type(req, "text/plain");
-    return httpd_resp_send(req, result, HTTPD_RESP_USE_STRLEN);
-}
-
-static const httpd_uri_t getTime = {
-    .uri = "/getTime",
-    .method = HTTP_GET,
-    .handler = getTime_get_handler,
-    /* Let's pass response string in user
-     * context to demonstrate it's usage */
-    .user_ctx = NULL};
 
 /**
  * This will return channel json string. Channel seems to hold
@@ -78,7 +36,6 @@ static const httpd_uri_t getTime = {
  */
 static esp_err_t channel_get_handler(httpd_req_t *req)
 {
-
     httpd_resp_set_type(req, "application/json");
     return httpd_resp_send(req, channel_string, HTTPD_RESP_USE_STRLEN);
 }
@@ -92,14 +49,33 @@ static const httpd_uri_t channel_handler = {
     .user_ctx = NULL};
 
 /**
+ * Battery chart and amp in/out need some data to start with. This
+ * is just some dummy data to jump start both charts.
+ */
+static esp_err_t chartData_get_handler(httpd_req_t *req)
+{
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, chartJumpStart_String, HTTPD_RESP_USE_STRLEN);
+}
+static const httpd_uri_t chartData = {
+    .uri = "/recent.json",
+    .method = HTTP_GET,
+    .handler = chartData_get_handler,
+    /* Let's pass response string in user
+     * context to demonstrate it's usage */
+    .user_ctx = NULL};
+
+/**
  * This will return dataNow information. This should be generated in
  * real time in the actual project. This is the data shown under
  * "Now" table
  */
 static esp_err_t dataNow_get_handler(httpd_req_t *req)
 {
+    char *dataNowString = getDataNow(this_time);
+    this_time += 10000;
     httpd_resp_set_type(req, "application/json");
-    return httpd_resp_send(req, dataNow_string, HTTPD_RESP_USE_STRLEN);
+    return httpd_resp_send(req, dataNowString, HTTPD_RESP_USE_STRLEN);
 }
 
 static const httpd_uri_t dataNow = {
@@ -236,7 +212,7 @@ static const httpd_uri_t howler_handler = {
 static esp_err_t alarm_get_handler(httpd_req_t *req)
 {
     httpd_resp_set_type(req, "text/javascript");
-    return httpd_resp_send(req, alarm, HTTPD_RESP_USE_STRLEN);
+    return httpd_resp_send(req, alarm_js, HTTPD_RESP_USE_STRLEN);
 }
 
 static const httpd_uri_t alarm_handler = {
@@ -270,8 +246,9 @@ static const httpd_uri_t date_handler = {
  */
 static esp_err_t hostinfo_get_handler(httpd_req_t *req)
 {
+    const char *hostInfo = getHostInfoJson();
     httpd_resp_set_type(req, "application/json");
-    return httpd_resp_send(req, hostInfo_string, HTTPD_RESP_USE_STRLEN);
+    return httpd_resp_send(req, hostInfo, HTTPD_RESP_USE_STRLEN);
 }
 static const httpd_uri_t hostinfo_handler = {
     .uri = "/hostinfo.json",
@@ -304,14 +281,16 @@ static const httpd_uri_t indexPage = {
 // Starting the server, if it fails to start the server, then returns NULL.
 httpd_handle_t start_webserver()
 {
+
     httpd_handle_t server = NULL;
     httpd_config_t config = HTTPD_DEFAULT_CONFIG();
     config.max_uri_handlers = 20;
     config.lru_purge_enable = true;
+    config.stack_size = 20480;
 
     if (httpd_start(&server, &config) == ESP_OK)
     {
-        ESP_LOGI("webServer", "WEB server started");
+        ESP_LOGI(TAG_WEB, "WEB server started");
         httpd_register_uri_handler(server, &indexPage);
         httpd_register_uri_handler(server, &channel_handler);
         httpd_register_uri_handler(server, &magnumjs);
@@ -325,16 +304,16 @@ httpd_handle_t start_webserver()
         httpd_register_uri_handler(server, &date_handler);
         httpd_register_uri_handler(server, &hostinfo_handler);
         httpd_register_uri_handler(server, &dataNow);
-        httpd_register_uri_handler(server, &getTime);
+        httpd_register_uri_handler(server, &chartData);
         return server;
     }
-    ESP_LOGI("webServer", "WEB failed to start");
+    ESP_LOGI(TAG_WEB, "WEB failed to start");
     return NULL;
 }
 
 void stop_webserver(httpd_handle_t server)
 {
     // Stop the httpd server
-    ESP_LOGI("webServer", "This server has stopped");
+    ESP_LOGI(TAG_WEB, "This server has stopped");
     httpd_stop(server);
 }

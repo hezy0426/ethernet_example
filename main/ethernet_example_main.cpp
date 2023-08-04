@@ -20,6 +20,7 @@
 #include "sdkconfig.h"
 #include "netdb.h"
 #include "webServer.h"
+#include "SDCard.h"
 
 #if CONFIG_ETH_USE_SPI_ETHERNET
 #include "driver/spi_master.h"
@@ -150,6 +151,7 @@ static void got_ip_event_handler(void *arg, esp_event_base_t event_base,
 
 extern "C" void app_main(void)
 {
+    initi_sd_card();
     // Web server is started with the two hanlders below. Static variable is used to ensure it stays in the memory
     static httpd_handle_t server = NULL;
     // Initialize TCP/IP network interface (should be called only once in application)
