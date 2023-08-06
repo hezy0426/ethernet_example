@@ -22,7 +22,7 @@
 #include "Data2Web.h"
 
 // All the CSS, HTML, and JS code stored in const char*
-#include "myscript_js.h"
+#include "supporting_js.h"
 #include "css.h"
 #include "index_html.h"
 #include "json_string.h"
