@@ -4,12 +4,6 @@
  */
 
 #include "Data2Web.h"
-#include "cJSON.h"
-#include <cstdint>
-#include <string>
-#include <cstring>
-#include <time.h>
-#include <random>
 #include "SDCard.h"
 
 /**
@@ -123,9 +117,7 @@ char *getHostInfoJson()
     char *JSONString = NULL;
     cJSON *JSONObj = NULL;
     cJSON *drives = NULL;
-    cJSON *hostName = NULL;
     cJSON *sd_card = NULL;
-    cJSON *media_usb = NULL;
     uint32_t tot, free;
     bool ret;
     if (!isMounted())
