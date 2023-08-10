@@ -296,7 +296,7 @@
 
           /* 24hour data */
           //dailyStats(dataAr,create);
-          // loadDayData(dataAr,create); //TODO: This is removed for now since we don't have 24 hours data
+          loadDayData(dataAr,create); //TODO: This is removed for now since we don't have 24 hours data
 
           /* plot graphs */
           if (create && parseInt(dataAr["age_bmk"].sampleValue) < 100)
@@ -961,35 +961,21 @@
       };
 
       function loadDayData(dataAr, create) {
-        // If internet explorer, use Microsoft XDR
-        if (isIE) {
-          var xdr = new XDomainRequest();
-          xdr.open("get", urlDay + "?t=" + new Date().getTime());
-
-          xdr.onerror = function () {
-            noResponse = true;
-            customFaults(null);
-          };
-          xdr.onload = function () {
-            dataS = $.parseJSON(xdr.responseText);
-
-            processDayData(dataS, dataAr, create);
-          };
-          xdr.send();
-        } else {
-          /* if not IE we use ajax */
-
-          $.ajaxSetup({ cache: false });
-          $.ajax({
-            type: "GET",
-            url: urlDay,
-            dataType: "html",
-            crossDomain: true,
-          }).done(function (dataS) {
-            dataS = $.parseJSON(dataS);
-            processDayData(dataS, dataAr, create);
-          });
-        }
+        var xhr = new XMLHttpRequest();
+        xhr.onreadystatechange = function () {
+          if (xhr.readyState === XMLHttpRequest.DONE) {
+            if (xhr.status === 200) {
+              dataS = $.parseJSON(xhr.responseText);
+              processDayData(dataS, dataAr, create);
+            } else {
+              console.error("Error:", xhr.status);
+              noResponse = true;
+              customFaults(null);
+            }
+          }
+        };
+        xhr.open("GET", "/dayStats.json", true);
+        xhr.send();
       }
 
       function processDayData(dayData, dataAr, create) {

@@ -65,6 +65,20 @@ static const httpd_uri_t chartData = {
      * context to demonstrate it's usage */
     .user_ctx = NULL};
 
+static esp_err_t dayStatsData_get_handler(httpd_req_t *req)
+{
+    char *dayStatsJson = getDaysStats();
+    httpd_resp_set_type(req, "application/json");
+    return httpd_resp_send(req, dayStatsJson, HTTPD_RESP_USE_STRLEN);
+}
+static const httpd_uri_t dayStatsData = {
+    .uri = "/dayStats.json",
+    .method = HTTP_GET,
+    .handler = dayStatsData_get_handler,
+    /* Let's pass response string in user
+     * context to demonstrate it's usage */
+    .user_ctx = NULL};
+
 /**
  * This will return dataNow information. This should be generated in
  * real time in the actual project. This is the data shown under
@@ -305,6 +319,7 @@ httpd_handle_t start_webserver()
         httpd_register_uri_handler(server, &hostinfo_handler);
         httpd_register_uri_handler(server, &dataNow);
         httpd_register_uri_handler(server, &chartData);
+        httpd_register_uri_handler(server, &dayStatsData);
         return server;
     }
     ESP_LOGI(TAG_WEB, "WEB failed to start");

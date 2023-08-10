@@ -6,6 +6,7 @@
 time_t epoch_time = 1691547163;
 const TickType_t xDelay = 10000;
 TaskHandle_t task_handle;
+#define TAG_DL "Data_Logging"
 
 // int generateHeadlines(char **headlineA, char **headlineB)
 // {
@@ -58,6 +59,7 @@ TaskHandle_t task_handle;
 void dataNowLog(void *pv_args)
 {
     std::string tempString;
+    std::vector<double> liveData;
     struct tm *currentTime;
 
     for (;;)
@@ -69,6 +71,45 @@ void dataNowLog(void *pv_args)
         strftime(fileName, sizeof fileName, "%Y%m%d.csv", currentTime);
         std::mt19937_64 rng(epoch_time);
         std::uniform_real_distribution<double> dist(0.0, 1.0);
+
+        double i_ac_volts_out = 120 + 3 * dist(rng);
+        double b_state_of_charge = 95 + 5 * dist(rng);
+        double b_dc_volts = 25.0 + 5.0 * dist(rng);
+        double b_dc_amps = 1 + 1 * dist(rng);
+        double b_dc_watts = b_dc_volts * b_dc_amps;
+        double i_dc_volts = 27.0 + 1 * dist(rng);
+        double i_dc_amps = 0.0;
+        double i_amps_out = 0;
+        double i_amps_in = 0;
+        double i_ac_hz = 58 + 3 * dist(rng);
+        double i_temp_battery = 34 + 3 * dist(rng);
+        double i_temp_transformer = 50 + 5 * dist(rng);
+        double i_temp_fet = 44;
+        double a_temperature = 240 + 5 * dist(rng);
+        double a_voltage_clean = 26 + 1 * dist(rng);
+        double b_amph_in_out = -1 + 1 * dist(rng);
+        double a_gen_runtime_decihours = 1.5;
+        double a_gen_run_hours_since_boot = 1.5;
+        double i_status = 0;
+        int i_ac_volts_in = 181;
+
+        liveData.push_back(i_ac_volts_out);
+        liveData.push_back(b_state_of_charge);
+        liveData.push_back(b_dc_volts);
+        liveData.push_back(b_dc_amps);
+        liveData.push_back(b_dc_watts);
+        liveData.push_back(i_dc_volts);
+        liveData.push_back(i_dc_amps);
+        liveData.push_back(i_amps_out);
+        liveData.push_back(i_amps_in);
+        liveData.push_back(i_ac_hz);
+        liveData.push_back(i_temp_battery);
+        liveData.push_back(i_temp_transformer);
+        liveData.push_back(i_temp_fet);
+        liveData.push_back(a_temperature);
+        liveData.push_back(a_voltage_clean);
+        liveData.push_back(b_amph_in_out);
+        liveData.push_back(0);
 
         // Create the file if it doesn't exist. Add the headers to the file
         if (!hasFile(fileName))
@@ -83,41 +124,61 @@ void dataNowLog(void *pv_args)
         currentTime = NULL;
         tempString.append(time_str).append(",0,");
         // b_dc_power
-        tempString.append(std::to_string(25.0 + 5.0 * dist(rng))).append(",");
+        tempString.append(std::to_string(b_dc_watts)).append(",");
         // i_dc_power
-        tempString.append(std::to_string(25.0 + 5.0 * dist(rng))).append(",");
+        tempString.append(std::to_string(i_dc_amps * i_dc_volts)).append(",");
         // calc_add_power
-        tempString.append(std::to_string(25.0 + 5.0 * dist(rng))).append(",");
+        tempString.append(std::to_string(b_dc_watts - i_dc_amps * i_dc_volts)).append(",");
         // gen_power
-        tempString.append(std::to_string(25.0 + 5.0 * dist(rng))).append(",");
+        tempString.append(std::to_string(i_ac_volts_in * i_amps_in)).append(",");
         // load_power
-        tempString.append(std::to_string(25.0 + 5.0 * dist(rng))).append(",");
-        tempString.append(std::to_string(25.0 + 5.0 * dist(rng))).append(",");
-        tempString.append(std::to_string(25.0 + 5.0 * dist(rng))).append(",");
-        tempString.append(std::to_string(25.0 + 5.0 * dist(rng))).append(",");
-        tempString.append(std::to_string(25.0 + 5.0 * dist(rng))).append(",");
-        tempString.append(std::to_string(25.0 + 5.0 * dist(rng))).append(",");
-        tempString.append(std::to_string(25.0 + 5.0 * dist(rng))).append(",");
-        tempString.append(std::to_string(25.0 + 5.0 * dist(rng))).append(",");
-        tempString.append(std::to_string(25.0 + 5.0 * dist(rng))).append(",");
-        tempString.append(std::to_string(25.0 + 5.0 * dist(rng))).append(",");
-        tempString.append(std::to_string(25.0 + 5.0 * dist(rng))).append(",");
-        tempString.append(std::to_string(25.0 + 5.0 * dist(rng))).append(",");
-        tempString.append(std::to_string(25.0 + 5.0 * dist(rng))).append(",");
-        tempString.append(std::to_string(25.0 + 5.0 * dist(rng))).append(",");
-        tempString.append(std::to_string(25.0 + 5.0 * dist(rng))).append(",");
-        tempString.append(std::to_string(25.0 + 5.0 * dist(rng))).append(",");
-        tempString.append(std::to_string(25.0 + 5.0 * dist(rng))).append(",");
-        tempString.append(std::to_string(25.0 + 5.0 * dist(rng))).append(",");
-        tempString.append(std::to_string(25.0 + 5.0 * dist(rng))).append(",");
-        // age_inverter
-        tempString.append("1,").append(std::to_string(25.0 + 5.0 * dist(rng)));
+        tempString.append(std::to_string(i_ac_volts_out * i_amps_out)).append(",");
+        // b_dc_volts
+        tempString.append(std::to_string(b_dc_volts)).append(",");
+        // b_dc_amps
+        tempString.append(std::to_string(b_dc_amps)).append(",");
+        // i_ac_volts_in
+        tempString.append(std::to_string(i_ac_volts_in)).append(",");
+        // b_amph_in_out
+        tempString.append(std::to_string(b_amph_in_out)).append(",");
+        // b_state_of_charge
+        tempString.append(std::to_string(b_state_of_charge)).append(",");
+        // i_dc_volts
+        tempString.append(std::to_string(i_dc_volts)).append(",");
+        // i_dc_amps
+        tempString.append(std::to_string(i_dc_amps)).append(",");
+        // i_ac_volts_out
+        tempString.append(std::to_string(i_ac_volts_out)).append(",");
+        // i_amps_out
+        tempString.append(std::to_string(i_amps_out)).append(",");
+        // i_amps_in
+        tempString.append(std::to_string(i_amps_in)).append(",");
+        // i_ac_hz
+        tempString.append(std::to_string(i_ac_hz)).append(",");
+        // i_status
+        tempString.append(std::to_string(i_status)).append(",");
+        // i_fault
+        tempString.append(std::to_string(0)).append(",");
+        // i_temp_transformer
+        tempString.append(std::to_string(i_temp_transformer)).append(",");
+        // i_temp_fet
+        tempString.append(std::to_string(i_temp_fet)).append(",");
+        // i_temp_battery
+        tempString.append(std::to_string(i_temp_battery)).append(",");
+        // a_gen_run_hours_since_boot
+        tempString.append(std::to_string(a_gen_run_hours_since_boot)).append(",");
+        // a_gen_runtime_decihours
+        tempString.append(std::to_string(a_gen_runtime_decihours)).append(",");
+        // age_inverter         a_temperature
+        tempString.append("1,").append(std::to_string(a_temperature));
 
         if (logStringToFile(tempString.c_str(), fileName))
         {
-            ESP_LOGI("Logging", "Successfully did one");
+            ESP_LOGI(TAG_DL, "Successfully did one");
         }
         tempString.clear();
+        addToRecent(liveData);
+        liveData.clear();
         epoch_time += 10;
         // TODO: Need the format of the file
         vTaskDelay(xDelay);
@@ -131,14 +192,19 @@ void startLogging()
 {
     if (!isMounted())
     {
-        initi_sd_card();
+        esp_err_t mounted = initi_sd_card();
+        if (mounted != ESP_OK)
+        {
+            ESP_LOGE(TAG_DL, "SD card failed to mount, logging task didn't start");
+            return;
+        }
+
         BaseType_t ret = xTaskCreate(dataNowLog, "dataNow_Logging_Task", 8192, NULL, 5, &task_handle);
         if (ret == pdPASS)
         {
-            ESP_LOGI("Logging", "Successfully started the task");
+            ESP_LOGI(TAG_DL, "Successfully started the task");
         }
     }
-    // TODO: confirm the priority with BA
 }
 
 /**

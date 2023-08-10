@@ -4,7 +4,9 @@
  */
 
 #include "Data2Web.h"
-#include "SDCard.h"
+
+const int MAX_COUNT = 10;
+std::map<const char *, historyObj> histMap;
 
 /**
  * Template function to convert any type of int value to a string
@@ -75,7 +77,7 @@ char *getDataNow(long long time)
     cJSON_AddItemToArray(data, createDataNowJSONObj("b_dc_amps", currentTime, amp));
     cJSON_AddItemToArray(data, createDataNowJSONObj("b_dc_watts", currentTime, watt)); // TODO: Needs to merge first
     cJSON_AddItemToArray(data, createDataNowJSONObj("b_state_of_charge", currentTime, 95 + 5 * dist(rng)));
-    cJSON_AddItemToArray(data, createDataNowJSONObj2("b_amph_in_out", currentTime, intToString(0.0)));
+    cJSON_AddItemToArray(data, createDataNowJSONObj2("b_amph_in_out", currentTime, intToString(-1 + 1 * dist(rng))));
     cJSON_AddItemToArray(data, createDataNowJSONObj2("age_bmk", currentTime, intToString(5.0))); // Dummy value
     cJSON_AddItemToArray(data, createDataNowJSONObj2("r_low_batt_cut_out", currentTime, "24.4"));
 
@@ -124,6 +126,8 @@ char *getHostInfoJson()
         initi_sd_card();
     if (isMounted())
         ret = SD_getFreeSpace(&tot, &free);
+    else
+        tot = free = 0;
     JSONObj = cJSON_CreateObject();
 
     cJSON_AddStringToObject(JSONObj, "hostname", "RAYCING");
@@ -141,7 +145,260 @@ char *getHostInfoJson()
     return JSONString;
 }
 
-// char *getDaysStats()
-// {
-//     return NULL;
-// }
+cJSON *createDayStatObj(historyObj temp)
+{
+    cJSON *dataHolder = NULL;
+    dataHolder = cJSON_CreateObject();
+    cJSON_AddNumberToObject(dataHolder, "max", temp.max);
+    cJSON_AddNumberToObject(dataHolder, "min", temp.min);
+    cJSON_AddNumberToObject(dataHolder, "avg", temp.avg);
+    return dataHolder;
+}
+
+char *getDaysStats()
+{
+    char *JSONString = NULL;
+    cJSON *JSONObj = NULL;
+    cJSON *dayStats = NULL;
+
+    JSONObj = cJSON_CreateObject();
+    cJSON_AddItemToObject(JSONObj, "dayStats", dayStats = cJSON_CreateObject());
+
+    for (auto i = histMap.begin(); i != histMap.end(); i++)
+    {
+        cJSON_AddItemToObject(dayStats, i->first, createDayStatObj(i->second));
+    }
+
+    JSONString = cJSON_Print(JSONObj);
+    cJSON_Delete(JSONObj);
+    return JSONString;
+}
+
+double findSum(const char *valueName)
+{
+    double sum = 0;
+    for (auto i = histMap[valueName].valueHolder.begin(); i != histMap[valueName].valueHolder.end(); ++i)
+    {
+        sum += *i;
+    };
+    return sum;
+}
+
+double findRollingAvg(const char *valueName)
+{
+    historyObj *temp = &histMap[valueName];
+    double avg = temp->avg + (temp->valueHolder[temp->valueHolder.size() - 1] - temp->valueHolder[0]) / MAX_COUNT;
+    temp->valueHolder.erase(temp->valueHolder.begin());
+    return avg;
+}
+
+template <typename T>
+void initMap(T firstValue, const char *valueName)
+{
+    historyObj hObj;
+    hObj.avg = firstValue;
+    hObj.max = firstValue;
+    hObj.min = firstValue;
+    hObj.valueHolder.push_back(firstValue);
+
+    histMap.insert({valueName, hObj});
+}
+
+void updateMap(double newValue, const char *valueName)
+{
+    historyObj *temp = &histMap[valueName];
+
+    temp->valueHolder.push_back(newValue);
+
+    if (temp->max < newValue)
+        temp->max = newValue;
+    else if (temp->min > newValue)
+        temp->min = newValue;
+    if (temp->valueHolder.size() < MAX_COUNT)
+        temp->avg = findSum(valueName) / temp->valueHolder.size();
+    else
+    {
+        temp->avg = findRollingAvg(valueName);
+    }
+}
+
+void addToRecent(std::vector<double> liveData)
+{
+    double i_ac_volts_out = liveData[0];
+    double b_state_of_charge_clean = liveData[1];
+    double b_dc_volts_clean = liveData[2];
+    double b_dc_amps_clean = liveData[3];
+    double b_dc_watts = liveData[4];
+    double i_dc_volts = liveData[5];
+    double i_dc_amps = liveData[6];
+    double i_amps_out = liveData[7];
+    double i_amps_in_clean = liveData[8];
+    double i_ac_hz_clean = liveData[9];
+    double i_temp_battery_clean = liveData[10];
+    double i_temp_transformer_clean = liveData[11];
+    double i_temp_fet_clean = liveData[12];
+    double a_temperature_clean = liveData[13];
+    double a_voltage_clean = liveData[14];
+
+    int i_status = (int)liveData[15];
+
+    if (i_ac_volts_out > 80)
+    {
+        double i_ac_volts_out_over_80 = i_ac_volts_out;
+        if (histMap.count("i_ac_volts_out_over_80") == 0)
+        {
+            initMap(i_ac_volts_out_over_80, "i_ac_volts_out_over_80");
+        }
+        else
+        {
+            updateMap(i_ac_volts_out_over_80, "i_ac_volts_out_over_80");
+        }
+        ESP_LOGI("D2W", "Avg: %f, Min: %f, Max: %f, current: %f", histMap["i_ac_volts_out_over_80"].avg, histMap["i_ac_volts_out_over_80"].min, histMap["i_ac_volts_out_over_80"].max, i_ac_volts_out_over_80);
+    }
+
+    if (i_amps_out < 100 && 0x01 != i_status && 0x02 != i_status && 0x04 != i_status && 0x08 != i_status)
+    {
+        double i_amps_out_inverting = i_amps_out;
+
+        if (histMap.count("i_amps_out_inverting") == 0)
+        {
+            initMap(i_amps_out_inverting, "i_amps_out_inverting");
+        }
+        else
+        {
+            updateMap(i_amps_out_inverting, "i_amps_out_inverting");
+        }
+    }
+
+    if (i_amps_out < 100 && i_status >= 0x01 && i_status <= 0x08)
+    {
+        double i_amps_out_charging = i_amps_out;
+
+        if (histMap.count("i_amps_out_charging") == 0)
+        {
+            initMap(i_amps_out_charging, "i_amps_out_charging");
+        }
+        else
+        {
+            updateMap(i_amps_out_charging, "i_amps_out_charging");
+        }
+    }
+
+    // TODO: Assign input array value to local variable
+    if (histMap.count("b_state_of_charge_clean") == 0)
+    {
+        initMap(b_state_of_charge_clean, "b_state_of_charge_clean");
+    }
+    else
+    {
+        updateMap(b_state_of_charge_clean, "b_state_of_charge_clean");
+    }
+
+    if (histMap.count("b_dc_volts_clean") == 0)
+    {
+        initMap(b_dc_volts_clean, "b_dc_volts_clean");
+    }
+    else
+    {
+        updateMap(b_dc_volts_clean, "b_dc_volts_clean");
+    }
+
+    if (histMap.count("b_dc_amps_clean") == 0)
+    {
+        initMap(b_dc_amps_clean, "b_dc_amps_clean");
+    }
+    else
+    {
+        updateMap(b_dc_amps_clean, "b_dc_amps_clean");
+    }
+
+    if (histMap.count("b_dc_watts") == 0)
+    {
+        initMap(b_dc_watts, "b_dc_watts");
+    }
+    else
+    {
+        updateMap(b_dc_watts, "b_dc_watts");
+    }
+
+    if (histMap.count("i_dc_volts") == 0)
+    {
+        initMap(i_dc_volts, "i_dc_volts");
+    }
+    else
+    {
+        updateMap(i_dc_volts, "i_dc_volts");
+    }
+
+    if (histMap.count("i_dc_amps") == 0)
+    {
+        initMap(i_dc_amps, "i_dc_amps");
+    }
+    else
+    {
+        updateMap(i_dc_amps, "i_dc_amps");
+    }
+
+    if (histMap.count("i_amps_in_clean") == 0)
+    {
+        initMap(i_amps_in_clean, "i_amps_in_clean");
+    }
+    else
+    {
+        updateMap(i_amps_in_clean, "i_amps_in_clean");
+    }
+
+    if (histMap.count("i_ac_hz_clean") == 0)
+    {
+        initMap(i_ac_hz_clean, "i_ac_hz_clean");
+    }
+    else
+    {
+        updateMap(i_ac_hz_clean, "i_ac_hz_clean");
+    }
+
+    if (histMap.count("i_temp_battery_clean") == 0)
+    {
+        initMap(i_temp_battery_clean, "i_temp_battery_clean");
+    }
+    else
+    {
+        updateMap(i_temp_battery_clean, "i_temp_battery_clean");
+    }
+
+    if (histMap.count("i_temp_transformer_clean") == 0)
+    {
+        initMap(i_temp_transformer_clean, "i_temp_transformer_clean");
+    }
+    else
+    {
+        updateMap(i_temp_transformer_clean, "i_temp_transformer_clean");
+    }
+
+    if (histMap.count("i_temp_fet_clean") == 0)
+    {
+        initMap(i_temp_fet_clean, "i_temp_fet_clean");
+    }
+    else
+    {
+        updateMap(i_temp_fet_clean, "i_temp_fet_clean");
+    }
+
+    if (histMap.count("a_temperature_clean") == 0)
+    {
+        initMap(a_temperature_clean, "a_temperature_clean");
+    }
+    else
+    {
+        updateMap(a_temperature_clean, "a_temperature_clean");
+    }
+
+    if (histMap.count("a_voltage_clean") == 0)
+    {
+        initMap(a_voltage_clean, "a_voltage_clean");
+    }
+    else
+    {
+        updateMap(a_voltage_clean, "a_voltage_clean");
+    }
+}

@@ -12,6 +12,7 @@
 #include <string>
 #include <time.h>
 #include <random>
+#include <vector>
 
 void startLogging();
 void stopLogging();
