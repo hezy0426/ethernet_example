@@ -8,11 +8,10 @@
 #include "esp_log.h"
 
 #include <cstdint>
-#include <sys/stat.h>
-#include <string>
 #include <time.h>
 #include <random>
 #include <vector>
+#include <cmath>
 
 void startLogging();
 void stopLogging();

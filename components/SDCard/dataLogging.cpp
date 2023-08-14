@@ -2,6 +2,7 @@
 
 #define HEADER1 "Data Date (UTC),Milliseconds,b_dc_power,i_dc_power,calc_add_power,gen_power,load_power,b_dc_volts,b_dc_amps,i_ac_volts_in,b_amph_in_out,b_state_of_charge,i_dc_volts,i_dc_amps,i_ac_volts_out,i_amps_out,i_amps_in,i_ac_hz,i_status,i_fault,i_temp_transformer,i_temp_fet,i_temp_battery,a_gen_run_hours_since_boot,a_gen_runtime_decihours,age_inverter,a_temperature"
 #define HEADER2 "Data Date (UTC),Milliseconds,DC Power (RMK),DC Power (Inverter),Calculated Renewable Power,AC In Power,AC Out Power,VDC (BMK),DC Amps (BMK),VAC In (Inverter),Ah In/Out (BMK),SOC (BMK),VDC (Inveter),DC Amps (Inverter),VAC Out (Inverter),AC Amps Out,AC Amps IN,AC Out Hz,Inverter Status,Fault Code,Transformer Temp (C ),FET Temp (C ),Battery Temp (C ),Total Generator Runtime (Since AGS Boot),Generator Runtime (Current Cycle),Inverter Age (255 indicates old data),AGS Temp (C )"
+#define HEADER_SIZE 840
 
 time_t epoch_time = 1691547163;
 const TickType_t xDelay = 10000;
@@ -58,8 +59,7 @@ TaskHandle_t task_handle;
 
 void dataNowLog(void *pv_args)
 {
-    std::string tempString;
-    std::vector<double> liveData;
+    std::vector<float> liveData;
     struct tm *currentTime;
 
     for (;;)
@@ -67,31 +67,35 @@ void dataNowLog(void *pv_args)
         // Move into the loop so when a new day comes, it will generate a new file
         char fileName[15];
         char time_str[25];
+        char buffer[130];
+        char headers[840];
+
         currentTime = localtime(&epoch_time);
         strftime(fileName, sizeof fileName, "%Y%m%d.csv", currentTime);
         std::mt19937_64 rng(epoch_time);
-        std::uniform_real_distribution<double> dist(0.0, 1.0);
+        std::uniform_real_distribution<float> dist(0.0, 1.0);
 
-        double i_ac_volts_out = 120 + 3 * dist(rng);
-        double b_state_of_charge = 95 + 5 * dist(rng);
-        double b_dc_volts = 25.0 + 5.0 * dist(rng);
-        double b_dc_amps = 1 + 1 * dist(rng);
-        double b_dc_watts = b_dc_volts * b_dc_amps;
-        double i_dc_volts = 27.0 + 1 * dist(rng);
-        double i_dc_amps = 0.0;
-        double i_amps_out = 0;
-        double i_amps_in = 0;
-        double i_ac_hz = 58 + 3 * dist(rng);
-        double i_temp_battery = 34 + 3 * dist(rng);
-        double i_temp_transformer = 50 + 5 * dist(rng);
-        double i_temp_fet = 44;
-        double a_temperature = 240 + 5 * dist(rng);
-        double a_voltage_clean = 26 + 1 * dist(rng);
-        double b_amph_in_out = -1 + 1 * dist(rng);
-        double a_gen_runtime_decihours = 1.5;
-        double a_gen_run_hours_since_boot = 1.5;
-        double i_status = 0;
-        int i_ac_volts_in = 181;
+        float i_ac_volts_out = 120 + 3 * dist(rng);
+        float b_state_of_charge = 95 + 5 * dist(rng);
+        float b_dc_volts = 25.0 + 5.0 * dist(rng);
+        float b_dc_amps = 1 + 1 * dist(rng);
+        float b_dc_watts = b_dc_volts * b_dc_amps;
+        float i_dc_volts = 27.0 + 1 * dist(rng);
+        float i_dc_amps = 0.0;
+        float i_amps_out = 0;
+        float i_amps_in = 0;
+        float i_ac_hz = 58 + 3 * dist(rng);
+        float i_temp_battery = 34 + 3 * dist(rng);
+        float i_temp_transformer = 50 + 5 * dist(rng);
+        float i_temp_fet = 44;
+        float a_temperature = 240 + 5 * dist(rng);
+        float a_voltage_clean = 26 + 1 * dist(rng);
+        float b_amph_in_out = -1 + 1 * dist(rng);
+        float a_gen_runtime_decihours = 1.5;
+        float a_gen_run_hours_since_boot = 1.5;
+        int i_status = 0;
+        int i_fault = 0;
+        float i_ac_volts_in = 181;
 
         liveData.push_back(i_ac_volts_out);
         liveData.push_back(b_state_of_charge);
@@ -109,74 +113,53 @@ void dataNowLog(void *pv_args)
         liveData.push_back(a_temperature);
         liveData.push_back(a_voltage_clean);
         liveData.push_back(b_amph_in_out);
-        liveData.push_back(0);
+        liveData.push_back(i_status);
 
         // Create the file if it doesn't exist. Add the headers to the file
         if (!hasFile(fileName))
         {
-            std::string headers;
-            headers.append(HEADER1).append("\n").append(HEADER2);
-            if (logStringToFile(headers.c_str(), fileName))
-                ;
+            snprintf(headers, HEADER_SIZE, "%s\n%s", HEADER1, HEADER2);
+            if (logStringToFile(headers, fileName))
+                ESP_LOGI(TAG_DL, "Created a new file %s", headers);
         }
 
         strftime(time_str, sizeof(time_str), "%Y/%m/%d %H:%M:%S", currentTime);
         currentTime = NULL;
-        tempString.append(time_str).append(",0,");
-        // b_dc_power
-        tempString.append(std::to_string(b_dc_watts)).append(",");
-        // i_dc_power
-        tempString.append(std::to_string(i_dc_amps * i_dc_volts)).append(",");
-        // calc_add_power
-        tempString.append(std::to_string(b_dc_watts - i_dc_amps * i_dc_volts)).append(",");
-        // gen_power
-        tempString.append(std::to_string(i_ac_volts_in * i_amps_in)).append(",");
-        // load_power
-        tempString.append(std::to_string(i_ac_volts_out * i_amps_out)).append(",");
-        // b_dc_volts
-        tempString.append(std::to_string(b_dc_volts)).append(",");
-        // b_dc_amps
-        tempString.append(std::to_string(b_dc_amps)).append(",");
-        // i_ac_volts_in
-        tempString.append(std::to_string(i_ac_volts_in)).append(",");
-        // b_amph_in_out
-        tempString.append(std::to_string(b_amph_in_out)).append(",");
-        // b_state_of_charge
-        tempString.append(std::to_string(b_state_of_charge)).append(",");
-        // i_dc_volts
-        tempString.append(std::to_string(i_dc_volts)).append(",");
-        // i_dc_amps
-        tempString.append(std::to_string(i_dc_amps)).append(",");
-        // i_ac_volts_out
-        tempString.append(std::to_string(i_ac_volts_out)).append(",");
-        // i_amps_out
-        tempString.append(std::to_string(i_amps_out)).append(",");
-        // i_amps_in
-        tempString.append(std::to_string(i_amps_in)).append(",");
-        // i_ac_hz
-        tempString.append(std::to_string(i_ac_hz)).append(",");
-        // i_status
-        tempString.append(std::to_string(i_status)).append(",");
-        // i_fault
-        tempString.append(std::to_string(0)).append(",");
-        // i_temp_transformer
-        tempString.append(std::to_string(i_temp_transformer)).append(",");
-        // i_temp_fet
-        tempString.append(std::to_string(i_temp_fet)).append(",");
-        // i_temp_battery
-        tempString.append(std::to_string(i_temp_battery)).append(",");
-        // a_gen_run_hours_since_boot
-        tempString.append(std::to_string(a_gen_run_hours_since_boot)).append(",");
-        // a_gen_runtime_decihours
-        tempString.append(std::to_string(a_gen_runtime_decihours)).append(",");
-        // age_inverter         a_temperature
-        tempString.append("1,").append(std::to_string(a_temperature));
 
-        if (logStringToFile(tempString.c_str(), fileName))
+        snprintf(buffer, 120, "%s,%d,%.0f,%.0f,%.0f,%.0f,%.0f,%.2f,%.2f,%.0f,%.0f,%.0f,%.2f,%.0f,%.0f,%.0f,%.0f,%.2f,%d,%d,%.2f,%.2f,%.2f,%.2f,%.2f,%d,%.0f",
+                 time_str,
+                 0, // Millisecond
+                 b_dc_watts,
+                 i_dc_amps * i_dc_volts,
+                 b_dc_watts - i_dc_amps * i_dc_volts,
+                 i_ac_volts_in * i_amps_in,
+                 i_ac_volts_out * i_amps_out,
+                 b_dc_volts,
+                 b_dc_amps,
+                 i_ac_volts_in,
+                 b_amph_in_out,
+                 b_state_of_charge,
+                 i_dc_volts,
+                 i_dc_amps,
+                 i_ac_volts_out,
+                 i_amps_out,
+                 i_amps_in,
+                 i_ac_hz,
+                 i_status,
+                 i_fault,
+                 i_temp_transformer,
+                 i_temp_fet,
+                 i_temp_battery,
+                 a_gen_run_hours_since_boot,
+                 a_gen_runtime_decihours,
+                 1, // age_inverter
+                 a_temperature);
+        ESP_LOGI(TAG_DL, "Logging this: %s", buffer);
+
+        if (logStringToFile(buffer, fileName))
         {
             ESP_LOGI(TAG_DL, "Successfully did one");
         }
-        tempString.clear();
         addToRecent(liveData);
         liveData.clear();
         epoch_time += 10;

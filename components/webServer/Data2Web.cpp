@@ -182,7 +182,7 @@ char *getDaysStats()
 void updateAverage(const char *valueName)
 {
     historyObj *temp = &histMap[valueName];
-    double sum = 0;
+    float sum = 0;
     for (auto i = temp->valueHolder.begin(); i != temp->valueHolder.end(); ++i)
     {
         sum += *i;
@@ -223,7 +223,7 @@ void initMap(T firstValue, const char *valueName)
 /**
  * If this key exists in the map already, update all values.
  */
-void updateMap(double newValue, const char *valueName)
+void updateMap(float newValue, const char *valueName)
 {
     historyObj *temp = &histMap[valueName];
 
@@ -241,29 +241,29 @@ void updateMap(double newValue, const char *valueName)
     }
 }
 
-void addToRecent(std::vector<double> liveData)
+void addToRecent(std::vector<float> liveData)
 {
-    double i_ac_volts_out = liveData[0];
-    double b_state_of_charge_clean = liveData[1];
-    double b_dc_volts_clean = liveData[2];
-    double b_dc_amps_clean = liveData[3];
-    double b_dc_watts = liveData[4];
-    double i_dc_volts = liveData[5];
-    double i_dc_amps = liveData[6];
-    double i_amps_out = liveData[7];
-    double i_amps_in_clean = liveData[8];
-    double i_ac_hz_clean = liveData[9];
-    double i_temp_battery_clean = liveData[10];
-    double i_temp_transformer_clean = liveData[11];
-    double i_temp_fet_clean = liveData[12];
-    double a_temperature_clean = liveData[13];
-    double a_voltage_clean = liveData[14];
+    float i_ac_volts_out = liveData[0];
+    float b_state_of_charge_clean = liveData[1];
+    float b_dc_volts_clean = liveData[2];
+    float b_dc_amps_clean = liveData[3];
+    float b_dc_watts = liveData[4];
+    float i_dc_volts = liveData[5];
+    float i_dc_amps = liveData[6];
+    float i_amps_out = liveData[7];
+    float i_amps_in_clean = liveData[8];
+    float i_ac_hz_clean = liveData[9];
+    float i_temp_battery_clean = liveData[10];
+    float i_temp_transformer_clean = liveData[11];
+    float i_temp_fet_clean = liveData[12];
+    float a_temperature_clean = liveData[13];
+    float a_voltage_clean = liveData[14];
 
     int i_status = (int)liveData[15];
 
     if (i_ac_volts_out > 80)
     {
-        double i_ac_volts_out_over_80 = i_ac_volts_out;
+        float i_ac_volts_out_over_80 = i_ac_volts_out;
         if (histMap.count("i_ac_volts_out_over_80") == 0)
         {
             initMap(i_ac_volts_out_over_80, "i_ac_volts_out_over_80");
@@ -272,12 +272,11 @@ void addToRecent(std::vector<double> liveData)
         {
             updateMap(i_ac_volts_out_over_80, "i_ac_volts_out_over_80");
         }
-        ESP_LOGI("D2W", "Avg: %f, Min: %f, Max: %f, current: %f", histMap["i_ac_volts_out_over_80"].avg, histMap["i_ac_volts_out_over_80"].min, histMap["i_ac_volts_out_over_80"].max, i_ac_volts_out_over_80);
     }
 
     if (i_amps_out < 100 && 0x01 != i_status && 0x02 != i_status && 0x04 != i_status && 0x08 != i_status)
     {
-        double i_amps_out_inverting = i_amps_out;
+        float i_amps_out_inverting = i_amps_out;
 
         if (histMap.count("i_amps_out_inverting") == 0)
         {
@@ -291,7 +290,7 @@ void addToRecent(std::vector<double> liveData)
 
     if (i_amps_out < 100 && i_status >= 0x01 && i_status <= 0x08)
     {
-        double i_amps_out_charging = i_amps_out;
+        float i_amps_out_charging = i_amps_out;
 
         if (histMap.count("i_amps_out_charging") == 0)
         {

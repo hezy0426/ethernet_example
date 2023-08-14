@@ -14,13 +14,13 @@
 class historyObj
 {
 public:
-    double max;
-    double avg;
-    double min;
-    std::vector<double> valueHolder;
+    float max;
+    float avg;
+    float min;
+    std::vector<float> valueHolder;
 };
 
 char *getDataNow(long long time);
 char *getHostInfoJson();
 char *getDaysStats();
-void addToRecent(std::vector<double> liveData);
+void addToRecent(std::vector<float> liveData);
