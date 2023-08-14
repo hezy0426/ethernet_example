@@ -128,6 +128,8 @@ char *getHostInfoJson()
         ret = SD_getFreeSpace(&tot, &free);
     else
         tot = free = 0;
+
+    ESP_LOGI("SD_CARD", "%i KiB total drive space. %i KiB available.", tot, free);
     JSONObj = cJSON_CreateObject();
 
     cJSON_AddStringToObject(JSONObj, "hostname", "RAYCING");
@@ -174,24 +176,38 @@ char *getDaysStats()
     return JSONString;
 }
 
-double findSum(const char *valueName)
+/**
+ * Before the vector size hits max number 10, we count the basic avg = sum/size
+ */
+void updateAverage(const char *valueName)
 {
+    historyObj *temp = &histMap[valueName];
     double sum = 0;
-    for (auto i = histMap[valueName].valueHolder.begin(); i != histMap[valueName].valueHolder.end(); ++i)
+    for (auto i = temp->valueHolder.begin(); i != temp->valueHolder.end(); ++i)
     {
         sum += *i;
     };
-    return sum;
+    temp->avg = sum / temp->valueHolder.size();
 }
 
-double findRollingAvg(const char *valueName)
+/**
+ * Once the vector size hits max number 10, we calculate the average with
+ * rolling average. New value has been added to the vector at this point,
+ * so it just needs to do: currentAvg + (newValue - oldestValue)/maxSize
+ * After this, remove the oldest value so it can remain max size of 10.
+ */
+void updateRollingAvg(const char *valueName)
 {
     historyObj *temp = &histMap[valueName];
-    double avg = temp->avg + (temp->valueHolder[temp->valueHolder.size() - 1] - temp->valueHolder[0]) / MAX_COUNT;
+    temp->avg = temp->avg + (temp->valueHolder[temp->valueHolder.size() - 1] - temp->valueHolder[0]) / MAX_COUNT;
     temp->valueHolder.erase(temp->valueHolder.begin());
-    return avg;
 }
 
+/**
+ * If this map key doesn't exist, create a new object and
+ * insert it into the map. Since it's the first time being call,
+ * all the value can be set with the firstValue.
+ */
 template <typename T>
 void initMap(T firstValue, const char *valueName)
 {
@@ -204,6 +220,9 @@ void initMap(T firstValue, const char *valueName)
     histMap.insert({valueName, hObj});
 }
 
+/**
+ * If this key exists in the map already, update all values.
+ */
 void updateMap(double newValue, const char *valueName)
 {
     historyObj *temp = &histMap[valueName];
@@ -215,10 +234,10 @@ void updateMap(double newValue, const char *valueName)
     else if (temp->min > newValue)
         temp->min = newValue;
     if (temp->valueHolder.size() < MAX_COUNT)
-        temp->avg = findSum(valueName) / temp->valueHolder.size();
+        updateAverage(valueName);
     else
     {
-        temp->avg = findRollingAvg(valueName);
+        updateRollingAvg(valueName);
     }
 }
 
