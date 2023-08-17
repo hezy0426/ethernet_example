@@ -3,7 +3,7 @@
  * Build a JSON string that contains all front end needed data from evo2Mnp.
  */
 
-#include "Data2Web.h"
+#include "webServer.h"
 
 const int MAX_COUNT = 10;
 std::map<const char *, historyObj> histMap;
@@ -12,12 +12,11 @@ std::map<const char *, historyObj> histMap;
  * Template function to convert any type of int value to a string
  */
 template <typename T>
-const char *intToString(T value)
+std::string intToString(T value)
 {
-    std::string strValue = std::to_string(value);
-    char *cstr = new char[strValue.length() + 1];
-    std::strcpy(cstr, strValue.c_str());
-    return cstr;
+    std::string strValue;
+    strValue.append(std::to_string(value));
+    return strValue;
 }
 
 /**
@@ -61,7 +60,7 @@ char *getDataNow(long long time)
     char *JSONString = NULL;
     cJSON *JSONObj = NULL;
     cJSON *data = NULL;
-    const char *currentTime = intToString(time);
+    const char *currentTime = intToString(time).c_str();
     std::mt19937_64 rng(time);
     std::uniform_real_distribution<double> dist(0.0, 1.0);
 
@@ -77,13 +76,13 @@ char *getDataNow(long long time)
     cJSON_AddItemToArray(data, createDataNowJSONObj("b_dc_amps", currentTime, amp));
     cJSON_AddItemToArray(data, createDataNowJSONObj("b_dc_watts", currentTime, watt)); // TODO: Needs to merge first
     cJSON_AddItemToArray(data, createDataNowJSONObj("b_state_of_charge", currentTime, 95 + 5 * dist(rng)));
-    cJSON_AddItemToArray(data, createDataNowJSONObj2("b_amph_in_out", currentTime, intToString(-1 + 1 * dist(rng))));
-    cJSON_AddItemToArray(data, createDataNowJSONObj2("age_bmk", currentTime, intToString(5.0))); // Dummy value
+    cJSON_AddItemToArray(data, createDataNowJSONObj2("b_amph_in_out", currentTime, intToString(-1 + 1 * dist(rng)).c_str()));
+    cJSON_AddItemToArray(data, createDataNowJSONObj2("age_bmk", currentTime, intToString(5.0).c_str())); // Dummy value
     cJSON_AddItemToArray(data, createDataNowJSONObj2("r_low_batt_cut_out", currentTime, "24.4"));
 
     // Inverter
-    cJSON_AddItemToArray(data, createDataNowJSONObj2("i_model", currentTime, intToString(218)));
-    cJSON_AddItemToArray(data, createDataNowJSONObj2("i_status", currentTime, intToString(0)));
+    cJSON_AddItemToArray(data, createDataNowJSONObj2("i_model", currentTime, intToString(218).c_str()));
+    cJSON_AddItemToArray(data, createDataNowJSONObj2("i_status", currentTime, intToString(0).c_str()));
     cJSON_AddItemToArray(data, createDataNowJSONObj("i_temp_battery", currentTime, 34 + 3 * dist(rng)));
     cJSON_AddItemToArray(data, createDataNowJSONObj("i_temp_transformer", currentTime, 50 + 5 * dist(rng)));
     cJSON_AddItemToArray(data, createDataNowJSONObj("i_temp_fet", currentTime, 44));
@@ -96,8 +95,8 @@ char *getDataNow(long long time)
     cJSON_AddItemToArray(data, createDataNowJSONObj2("b_fault", currentTime, "1"));
     cJSON_AddItemToArray(data, createDataNowJSONObj("i_dc_volts", currentTime, 28));
     cJSON_AddItemToArray(data, createDataNowJSONObj2("i_fault", currentTime, "0"));
-    cJSON_AddItemToArray(data, createDataNowJSONObj2("age_inverter", currentTime, intToString(1.0)));     // Dummy value
-    cJSON_AddItemToArray(data, createDataNowJSONObj2("length_inverter", currentTime, intToString(22.0))); // Dummy value
+    cJSON_AddItemToArray(data, createDataNowJSONObj2("age_inverter", currentTime, intToString(1.0).c_str()));     // Dummy value
+    cJSON_AddItemToArray(data, createDataNowJSONObj2("length_inverter", currentTime, intToString(22.0).c_str())); // Dummy value
 
     // AGS
     cJSON_AddItemToArray(data, createDataNowJSONObj2("a_status", currentTime, "1.0"));
@@ -106,9 +105,8 @@ char *getDataNow(long long time)
     cJSON_AddItemToArray(data, createDataNowJSONObj2("a_gen_runtime_decihours", currentTime, "1.5"));
     cJSON_AddItemToArray(data, createDataNowJSONObj2("a_days_since_last", currentTime, "2"));
     cJSON_AddItemToArray(data, createDataNowJSONObj2("a_gen_run_hours_since_boot", currentTime, "3"));
-    cJSON_AddItemToArray(data, createDataNowJSONObj2("age_ags_0xA1", currentTime, intToString(9.0))); // Dummy value
+    cJSON_AddItemToArray(data, createDataNowJSONObj2("age_ags_0xA1", currentTime, intToString(9.0).c_str())); // Dummy value
 
-    delete[] currentTime;
     JSONString = cJSON_Print(JSONObj);
     cJSON_Delete(JSONObj);
     return JSONString;
@@ -144,6 +142,28 @@ char *getHostInfoJson()
 
     JSONString = cJSON_Print(JSONObj);
     cJSON_Delete(JSONObj);
+    return JSONString;
+}
+
+char *getHistoryFiles()
+{
+    cJSON *data = NULL;
+    cJSON *history_files = NULL;
+    cJSON *files = NULL;
+    char *JSONString = NULL;
+
+    std::vector<std::string> fileNames = getAllFileName();
+
+    data = cJSON_CreateObject();
+    cJSON_AddItemToObject(data, "history_files", history_files = cJSON_CreateObject());
+    cJSON_AddItemToObject(history_files, "files", files = cJSON_CreateArray());
+
+    for (auto &it : fileNames)
+    {
+        cJSON_AddItemToArray(files, cJSON_CreateString(it.c_str()));
+    }
+    JSONString = cJSON_Print(data);
+    cJSON_Delete(data);
     return JSONString;
 }
 

@@ -12,6 +12,7 @@
 #include "sdmmc_cmd.h"
 #include "esp_vfs_fat.h"
 
+#define MOUNT_POINT "/sdcard"
 const char *const TAG_SD = "SD_Card";
 static sdmmc_card_t *card;
 static bool SDCARDMOUNTED = false;

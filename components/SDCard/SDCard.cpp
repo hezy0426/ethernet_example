@@ -4,7 +4,7 @@
  */
 #include "SDCard.h"
 
-#define MOUNT_POINT "/sdcard"
+
 
 /**
  * This function will mount the SD card
