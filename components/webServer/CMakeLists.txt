@@ -1,4 +1,5 @@
-idf_component_register(SRCS "cJSON.c" "webServer.cpp"
-                        REQUIRES "esp_http_server"
+idf_component_register(SRCS "Data2Web.cpp" "webServer.cpp"
+                        REQUIRES "esp_http_server" "json" "SDCard"
 
                     INCLUDE_DIRS "include")
+    
